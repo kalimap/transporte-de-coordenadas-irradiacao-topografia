@@ -1,0 +1,22 @@
+
+%% 1. Caderneta de campo
+
+%OBS.1: ARQUIVO DE TEXTO TEM QUE SEGUIR A ORDEM:
+%Visada1(Ré)-Direção Ang Horiz PD; DAH PI; Direções Ang Zen PD; DAZ PI;Visada2 (Vante1)-DAH PD;DAH PI;DAZ PD; DAZ PI;...
+
+%OBS.2: O PASSO DE TRANSFORMAÇÃO SÓ É NECESSÁRIO SE OS ANGULOS ESTIVEREM EM DMS:
+%Se estiverem em graus decimais podem ser inseridos diretamente via txt como valor de dms_deg na função direção angular média
+
+Exemplo de arquivos de entrada no tópico caderneta de campo para ângulos:
+
+%Estação A - Ângulos.txt
+%Separador: space
+117 12 19 %1a serie de leitura: Distancia Angular Horizonal PD
+297 12 12 %1a serie de leitura: Distancia Angular Horizonal PI
+117 12 15 %1a serie de leitura: Distancia Angular Zenital PD
+297 12 08 %1a serie de leitura: Distancia Angular Zenital PI
+106 27 56 %2a serie de leitura: Distancia Angular Horizonal PD
+253 32 01 %2a serie de leitura: Distancia Angular Horizontal PI
+106 27 50 %2a serie de leitura: Distancia Angular Zenital PD
+253 32 07 %2a serie de leitura: Distancia Angular Zenital PI
+
