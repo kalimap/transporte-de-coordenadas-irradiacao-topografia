@@ -1,0 +1,467 @@
+clc
+clear
+format long
+
+%% Dados Gerais
+%Coordenadas UTM (E, N, h) dos Vértices S001 e S002 e suas precisões(sigmas)
+S1=[745539.798 6926146.828 3.111];
+s_S1=[0.004 0.005 0.019];
+S2=[745555.562 6926086.599 4.101];
+s_S2=[0.004 0.005 0.019];
+
+%Erro de centragem do instrumento e  do refletor (m)
+ec_i=0.0015;
+ec_r=0.0035;
+
+%Fator de deformação linear da região (fator de redução ao nível do mar + fator de deformação na projeção UTM)
+kr=1.00034374;
+
+%Precisão nominal angular da estação em segundos
+pn_a=2;
+
+%Precisão nominal do compensador vertical da estação em segundos
+cv=1;
+
+%% 1. Caderneta de campo
+
+%OBS.1: ARQUIVO DE TEXTO TEM QUE SEGUIR A ORDEM:
+%Visada1(Ré)-Direção Ang Horiz PD; DAH PI; Direções Ang Zen PD; DAZ PI;Visada2 (Vante1)-DAH PD;DAH PI;DAZ PD; DAZ PI;...
+
+%OBS.2: O PASSO DE TRANSFORMAÇÃO SÓ É NECESSÁRIO SE OS ANGULOS ESTIVEREM EM DMS:
+%Se estiverem em graus decimais podem ser inseridos diretamente via txt como valor de dms_deg na função direção angular média
+
+%1.1. Estação S001:Ré(S001-S002) e Vante (S001-A)
+%INSERIR Número de direções angulares (Horizontais e Zenitais)
+ndaS1=4;
+
+%INSERIR Número de visadas para cada direção
+%S1_S2_H; S1_S2_Z; S1_A_H; S1_A_Z
+nvS1=[4 4 4 4];
+
+%Transformação das direções angulares em dms para graus decimais
+%Contadores dos limites da tabela (valores iniciais se as direções ang começarem na 1ª linha e 1ª coluna)
+c1=0;
+c2=nvS1(1)-1;
+
+%Conversão
+dms_deg_S1=zeros(max(nvS1),1,ndaS1);
+for i=1:ndaS1
+dms_deg_S1(1:nvS1(i),:,i)=dms2degrees(dlmread('Estacao S001 - Angulos',' ',[c1 0 c2 2]));
+    if i<ndaS1
+    c1=c1+nvS1(i);
+    c2=c2+nvS1(i+1);
+    end
+end
+
+%Direção angular média
+[daS1_m]=dir_ang_med(ndaS1,nvS1,dms_deg_S1);
+
+%1.2 Estação A: Ré (A-S001) e Vantes(A-25, A-26, A-27 e A-31)
+%INSERIR Número de direções angulares (Horizontais e Zenitais)
+ndaA=10;
+
+%INSERIR Número de visadas para cada direção
+%A_S1_H; A_S1_Z; A_25_H; A_25_Z; A_26_H; A_26_Z; A_27_H; A_27_Z; A_31_H; A_31_Z
+nvA=[4 4 1 1 1 1 1 1 1 1];
+
+%Transformação das direções angulares em dms para graus decimais
+%Contadores dos limites da tabela (valores iniciais se as direções ang começarem na 1ª linha e 1ª coluna)
+c1=0;
+c2=nvA(1)-1;
+
+%Conversão
+dms_deg_A=zeros(max(nvA),1,ndaA);
+for i=1:ndaA
+dms_deg_A(1:nvA(i),:,i)=dms2degrees(dlmread('Estacao A - Angulos',' ',[c1 0 c2 2]));
+    if i<ndaA
+    c1=c1+nvA(i);
+    c2=c2+nvA(i+1);
+    end
+end
+
+%Direção angular média
+[daA_m]=dir_ang_med(ndaA,nvA,dms_deg_A);
+
+%1.3 Distâncias Inclinadas medidas nas Vantes (S1-A) e (A-25; A-26; A-27; A-31)
+diS1=mean([122.410 122.410 122.411 122.410]);
+diA=[14.601;23.520;34.225;22.424];
+
+%Precisão nominal linear da estação em metros
+pn_l_S1=0.002+2.*diS1/1000000;
+pn_l_A=0.002+2.*diA/1000000;
+
+%Número de observações
+nS1=4;
+nA=1;
+
+%Desvio padrão (sigma) das distâncias inclinadas em metros
+s_diS1=sqrt(ec_i^2+ec_r^2+pn_l_S1.^2/nS1);
+s_diA=sqrt(ec_i^2+ec_r^2+pn_l_A.^2/nA);
+
+%1.4 Alturas
+%Altura das estações nos pontos S001 e A (m)
+heS1=1.475;
+heA=1.475;
+
+%Altura do prisma nas Vantes (S1-A) e (A-25; A-26; A-27; A-31)
+hpS1=[1.6];
+hpA=[1.435; 1.435; 1.6; 1.7];
+
+%Precisão da medição da altura do prisma e da medição da altura do estação (sigma altura) em m
+s_he=0.002;
+s_hp=0.002;
+
+%% 2. Estação S001 -  Cálculo do ponto A
+
+%2.1. Distância Horizontal da Vante (S001-A) e Precisão
+[dhS1_V,s_dhS1_V,s_zS1]=dist_horiz(daS1_m,diS1,s_diS1,pn_a,cv,nS1,kr);
+
+%2.2. Distância Horizontal, Azimute e Precisão do azimute (em segundos) da Ré (S001-S002)
+[dhS1_R,azS1_R,s_azS1_R]=dist_az_coordenadas(S1(1),s_S1(1),S1(2),s_S1(2),S2(1),s_S2(1),S2(2),s_S2(2));
+
+%2.3. Ângulo Horizontal Irradiado
+[ahiS1,s_ahiS1]=ang_horiz_irrad(daS1_m,dhS1_R,dhS1_V,ec_r,ec_i,pn_a,cv,nS1);
+
+%2.4. Azimute da visada de Vante (S001-A)
+[azS1_V,s_azS1_V]=az_vante(azS1_R,s_azS1_R,ahiS1,s_ahiS1);
+
+%2.5 Coordenadas do ponto A
+[A,s_A,s2d_A]=coord_vante(S1(1),s_S1(1),S1(2),s_S1(2),dhS1_V,s_dhS1_V,azS1_V,s_azS1_V);
+
+%2.6 Altitude do ponto A (desnível obtido por nivelamento trigonométrico)
+[A(3),s_A(3)]=niv_trig(S1(3),s_S1(3),heS1,s_he,hpS1,s_hp,diS1,s_diS1,daS1_m,s_zS1);
+
+%% 3. Estação A -  Cálculo dos pontos 25, 26, 27 e 31
+
+%3.1. Distância Horizontal de Vante (A-25, A-26, A-27,A-31) e Precisão
+[dhA_V,s_dhA_V,s_zA]=dist_horiz(daA_m,diA,s_diA,pn_a,cv,nA,kr);
+
+%3.2. Distância Horizontal, Azimute e Precisão do azimute (em segundos) da Ré (A-S001)
+dhA_R=dhS1_V;
+azA_R=azS1_V+180;
+[azA_R]=ang_intervalo(azA_R);
+s_azA_R=s_azS1_V;
+
+%3.3. Ângulo Horizontal Irradiado
+[ahiA,s_ahiA]=ang_horiz_irrad(daA_m,dhA_R,dhA_V,ec_r,ec_i,pn_a,cv,nA);
+
+%3.4. Azimute da visada de Vante (A-25, A-26, A-27,A-31)
+[azA_V,s_azA_V]=az_vante(azA_R,s_azA_R,ahiA,s_ahiA);
+
+%3.5 Coordenadas dos pontos 25, 26, 27 e 31
+[Pi,s_Pi,s2d_Pi]=coord_vante(A(1),s_A(1),A(2),s_A(2),dhA_V,s_dhA_V,azA_V,s_azA_V);
+
+%3.6 Altitude dos pontos 25, 26, 27 e 31 (desnível obtido por nivelamento trigonométrico)
+[Pi(:,3),s_Pi(:,3)]=niv_trig(A(3),s_A(3),heA,s_he,hpA,s_hp,diA,s_diA,daA_m,s_zA);
+
+%% 4. Interseção - Cálculo dos pontos 32
+
+%Coordenadas e precisão  obtidos pela planilha do professor
+Pi(5,:)=[745683.114777001 6926097.35263385 0];
+s_Pi(5,:)=[0.0872451637	0.0274992366 0];
+s2d_Pi(5,:)=[0.091476371821238];
+
+%% 5. Perímetro
+
+%Ajustar os pontos para ordem (25,26,27,32 e 31) para o próximo vértice (sentido anti-horário)
+Pi_lote(1:3,:)=Pi(1:3,:);
+Pi_lote(4,:)=Pi(5,:);
+Pi_lote(5,:)=Pi(4,:);
+s_Pi_lote(1:3,:)=s_Pi(1:3,:);
+s_Pi_lote(4,:)=s_Pi(5,:);
+s_Pi_lote(5,:)=s_Pi(4,:);
+[per,s_per,area,s_area]=perim_coord(Pi_lote,s_Pi_lote)
+
+%Verificar se o desvio padrão é maior que 5%
+verif=(s_area/area*100)
+
+%% FUNÇÃO A: Deixar os ângulos no intervalo entre 0° e 360°
+%Inserir ângulo(s) a ser verificado
+function [ang_i]=ang_intervalo(ang_i)
+
+for j=1:size(ang_i,2)
+    for i=1:size(ang_i,1)
+        if ang_i(i,j)<0
+           ang_i(i,j)=ang_i(i,j)+(abs(fix(ang_i(i,j)/360))+1)*360;
+        end
+        if ang_i(i,j)>=360
+           ang_i(i,j)=ang_i(i,j)-fix(ang_i(i,j)/360)*360;
+        end
+    end
+end
+
+end
+
+%% FUNÇÃO B: Direção Angular Média
+%Usa a função A no código (copiar juntas quando for ser usada em outro arquivo)
+%Inserir séries de leituras angulares (em graus decimais) e a função calcula a média das observações e/ou pares conjugados (quando houver)
+function [da_m]=dir_ang_med(nda,nv,deg)
+
+%Direções Angulares (Graus decimais)
+da=zeros(max(nv),nda);
+for i=1:nda
+    da(:,i)=deg(:,1,i);
+end
+da_pc=zeros(ceil(max(nv)/2),nda);
+
+%Calcular pares conjugados (PD-PI) dos ângulos horizontais de uma série
+for j=1:2:nda
+    if rem(nv(j),2)==0
+        for i=1:2:nv(j)
+            if da(i,j)>=180
+                da_pc((i+1)/2,j)=(da(i,j)+da(i+1,j)+180)/2;
+            elseif da(i,j)<180
+                da_pc((i+1)/2,j)=(da(i,j)+da(i+1,j)-180)/2;
+            end
+        end
+    elseif rem(nv(j),2)==1
+        for i=1:2:nv(j)-1
+            if da(i,j)>=180
+                da_pc((i+1)/2,j)=(da(i,j)+da(i+1,j)+180)/2;
+            elseif da(i,j)<180
+                da_pc((i+1)/2,j)=(da(i,j)+da(i+1,j)-180)/2;
+            end            
+        end
+        da_pc(((nv(j)+1)/2),j)=da(nv(j),j);
+    end
+end
+
+%Calcular par conjugado (PD-PI) dos ângulos zenitais de uma série
+for j=2:2:nda
+    if rem(nv(j),2)==0
+        for i=1:2:nv(j)
+            da_pc((i+1)/2,j)=(360+da(i,j)-da(i+1,j))/2;
+        end
+    elseif rem(nv(j),2)==1
+        for i=1:2:nv(j)-1
+            da_pc((i+1)/2,j)=(360+da(i,j)-da(i+1,j))/2;
+        end
+        da_pc(((nv(j)+1)/2),j)=da(nv(j),j);
+    end
+end
+
+%Média das séries
+da_m=zeros(1,nda);
+for j=1:nda
+    i=ceil(nv(j)/2);
+    da_m(1,j)=mean(da_pc(1:i,j));
+end
+
+%Deixar as direções angulares no intervalo entre 0° e 360°
+for i=1:nda
+    if da_m(i)<0
+       da_m(i)=da_m(i)+(abs(fix(da_m(i)/360))+1)*360;
+    end
+    if da_m(i)>=360
+       da_m(i)=da_m(i)-fix(da_m(i)/360)*360;
+    end
+end
+[da_m]=ang_intervalo(da_m);
+
+end
+
+%% FUNÇÃO C: Distância Horizontal da Vante e precisão
+%Inserir direções angulares médias, distância inclinada e precisao, precisão nominal angular e do compensador vertical, n° de observações do ponto com menor quantidade de visadas
+function [dh,s_dh,s_z]=dist_horiz(da_m,di,s_di,pn_a,cv,n,kr)
+
+%Distância Horizontal da Estação para a Vante
+for i=4:2:size(da_m,2)
+    j=(i-2)/2;
+    dh(j)=di(j)*sind(da_m(i))*kr;
+end
+
+%Precisão (sigma) do ângulo zenital em segundos de arco
+s_z=sqrt((2*(pn_a^2)+cv^2)*1/n);
+
+%Precisão (sigma) das distâncias horizontais
+for i=4:2:size(da_m,2)
+    j=(i-2)/2;
+    s_dh(j)=sqrt((sind(da_m(i))*s_di(j))^2+(di(j)*cosd(da_m(i))*s_z*pi()/648000)^2);
+end
+
+end
+
+%% FUNÇÃO D: Azimute (e precisão) e Distância por coordenadas (x,Y)
+%Inserir coordenadas do ponto inicial (Xi, Yi) do ponto final (Xf, Yf) e suas respectivas precisões 
+function [dh,az,s_az]=dist_az_coordenadas(Xi,s_Xi,Yi,s_Yi,Xf,s_Xf,Yf,s_Yf)
+
+%Distância horizontal UTM
+dh=sqrt((Xf-Xi)^2+(Yf-Yi)^2);
+%Azimute
+if ((Xf-Xi)>=0)&((Yf-Yi)>=0)
+    az=atand((Xf-Xi)/(Yf-Yi));
+elseif (((Xf-Xi)>=0)&((Yf-Yi)<=0))|(((Xf-Xi)<=0)&((Yf-Yi)<=0))
+    az=atand((Xf-Xi)/(Yf-Yi))+180;
+else ((Xf-Xi)<=0)&((Yf-Yi)>=0)
+    az=atand((Xf-Xi)/(Yf-Yi))+360;
+end
+
+%Precisão (sigma) do azimute em segundos
+s_az=sqrt(((Yf-Yi)/(dh^2))^2*(s_Xf^2+s_Xi^2)+((Xf-Xi)/(dh^2))^2*(s_Yf^2+s_Yi^2))*(648000/pi());
+
+end
+
+%% FUNÇÃO E: Ângulo Horizontal Irradiado e precisão
+%Usa a função A no código (copiar juntas quando for ser usada em outro arquivo)
+%Inserir direções angulares médias, distâncias horizontais da estação para ré e para vante, erro de centragem do refletor e instrumento, precisão nominal angular e do compensador vertical, n° de observações do ponto com menor quantidade de visadas
+function [ahi,s_ahi]=ang_horiz_irrad(da_m,dh_R,dh_V,ec_r,ec_i,pn_a,cv,n)
+
+%Ângulos Horizontais Irradiados
+for i=3:2:size(da_m,2)
+    ahi((i-1)/2)=da_m(i)-da_m(1);
+end
+[ahi]=ang_intervalo(ahi);
+
+%Efeito(sigma) em segundos do erro de nivelamento do instrumento sobre o ang horiz irradiado 
+for i=4:2:size(da_m,2)
+    s_niv((i-2)/2)=sqrt(cv^2*((1/tand(da_m(2)))^2+(1/tand(da_m(i)))^2));
+end
+
+%Distância Horizontal dos ponto Vante à Ré em metros
+for i=1:size(ahi,2)
+    if ahi(i)<=180
+        dh_RV(i)=sqrt(dh_R^2+dh_V(i)^2-2*dh_R*dh_V(i)*cosd(360+ahi(i)));
+    elseif ahi>180
+        dh_RV(i)=sqrt(dh_R^2+dh_V(i)^2-2*dh_R*dh_V(i)*cosd(360-ahi(i)));
+    end
+end
+
+%Erro de centragem em segundos
+s_c=sqrt((ec_r./(dh_R*dh_V)).^2.*(dh_R^2+dh_V.^2)+(ec_i./(dh_R.*dh_V)).^2.*(dh_RV.^2/2))*(648000/pi());
+%Precisão (sigma) do ângulo horiz irradiado em segudos
+s_ahi=sqrt((4/n)*pn_a^2+(s_niv.^2/n)+s_c.^2);
+end
+
+%% FUNÇÃO F: Azimute das Vantes e precisão
+%Usa a função A no código (copiar juntas quando for ser usada em outro arquivo)
+%Inserir azimute da Ré, ângulo horizontal irradiado e suas respectivas precisões
+function [az_V,s_az_V]=az_vante(az_R,s_az_R,ahi,s_ahi)
+
+%Azimute da visada de Vante (S001-A)
+az_V=az_R+ahi;
+[az_V]=ang_intervalo(az_V);
+
+%Precisão (sigma)do azimute da vante em radianos (transformação de segundo de arco para rad porque vai para MVC)
+s_az_V=sqrt(s_az_R^2+s_ahi.^2)*(pi()/648000);
+end
+
+%% FUNÇÃO G: Coordenadas dos pontos de Vante, suas precisões e sigma2D
+%Inserir Coordenadas do ponto estação, distâncias horizontais e azimutes da estação para as vantes e suas precisões 
+function [Pi,s_Pi,s2d_Pi]=coord_vante(Xi,s_Xi,Yi,s_Yi,dh_V,s_dh_V,az_V,s_az_V)
+
+%Número de pontos
+np=size(dh_V,2);
+
+%Coordenadas dos pontos
+Pi=zeros(np,2);
+for i=1:np
+Pi(i,:)=[Xi+dh_V(i)*sind(az_V(i)) Yi+dh_V(i)*cosd(az_V(i))];
+end
+
+%MVC das observações XS001, YS001, Distância Horizontal e Azimute
+mvc=zeros(1,(2+2*np));
+mvc(1,1:2)=[s_Xi^2 s_Yi^2];
+for i=1:np
+    mvc(1,i*2+1)=[s_dh_V(i)^2];
+    mvc(1,i*2+2)=[s_az_V(i)^2];
+end
+mvc=diag(mvc);
+
+%Derivadas parciais da função XA e YA em relação às observações (Xi,Yi,dh_v,az_V)
+gPi=zeros(2*np,2+2*np);
+for i=1:np
+    %Equações de X
+     %dX/dXi e dX/dYi
+     gPi((i*2)-1,1:2)=[1 0];
+     %dX/ddh_v
+     gPi((i*2)-1,i*2+1)=sind(az_V(i));
+     %dX/daz_V
+     gPi((i*2)-1,i*2+2)=dh_V(i)*cosd(az_V(i));
+    %Equações de Y
+     %dX/dXi e dX/dYi
+     gPi((i*2),1:2)=[0 1];
+     %dX/ddh_v
+     gPi((i*2),i*2+1)=cosd(az_V(i));
+     %dX/daz_V
+     gPi((i*2),i*2+2)=-dh_V(i)*sind(az_V(i));
+   end
+
+%MVC dos pontos visados (Vante)
+mvcPi=gPi*mvc*gPi';
+
+%Precisão das coordenadas e sigma2D
+s_Pi=zeros(np,2);
+s2d_Pi=zeros(np,1);
+for i=1:np
+    s_Pi(i,1)=sqrt(mvcPi(i*2-1,i*2-1));
+    s_Pi(i,2)=sqrt(mvcPi(i*2,i*2));
+    s2d_Pi(i,1)=sqrt(s_Pi(i,1)^2+s_Pi(i,2)^2);
+end
+
+end
+
+%% FUNÇÃO H: Nivelamento Trigonométrico 
+%Inserir coord Z, altura do instrumento (no ponto) e do prisma (na vante), distância inclinada e ângulo zenital para vante e suas precisões
+function [Zf,s_Zf]=niv_trig(Zi,s_Zi,he,s_he,hp,s_hp,di,s_di,da_m,s_z)
+
+%Desnível do ponto estação para a vante
+dn=zeros(1,size(di,2));
+for i=4:2:size(da_m,2)
+    j=(i-2)/2;
+    dn(j)=he+di(j)*cosd(da_m(i))-hp(j);
+end
+
+%Correção em função da curvatura da Terra
+cdn=zeros(1,size(di,2));
+for i=4:2:size(da_m,2)
+    j=(i-2)/2;
+    cdn(j)=6.75*10^-8*(di(j)*sind(da_m(i)))^2;
+end
+
+%Cota do ponto visado
+Zf=Zi+dn+cdn;
+
+%Precisão da altura do ponto
+s_Zf=zeros(1,size(di,2));
+for i=4:2:size(da_m,2)
+    j=(i-2)/2;
+    s_Zf(j)=sqrt(s_Zi^2+s_he^2+(cosd(da_m(i))+(0.0675*di(j)*sind(da_m(i))^2)/500000)^2*s_di(j)^2+(((0.0675*di(j)^2*sind(da_m(i))*cosd(da_m(i)))/500000)-(di(j)*sind(da_m(i))))^2*(s_z*pi()/648000)^2+s_hp^2);
+end
+end
+
+%% FUNÇÃO I: Perímetro e Área e suas precisões por coordenadas (X,Y)
+%Inserir Coordenadas dos pontos e seus desvios padrões ordenadas conforme vértice consecutivo em um sentido (horário ou anti-h)
+function [per,s_per,area,s_area]=perim_coord(Pi,s_Pi)
+
+%Perímetro e precisão
+np=size(Pi,1);
+dist_ab=zeros(1,np);
+for i=1:np
+    if i<np
+       dist_ab(i)=sqrt((Pi(i+1,1)-Pi(i,1))^2+(Pi(i+1,2)-Pi(i,2))^2);
+       s_dist_ab(i)=sqrt(((Pi(i+1,1)-Pi(i,1))/dist_ab(i))^2*(s_Pi(i+1,1)^2+s_Pi(i,1)^2)+((Pi(i+1,2)-Pi(i,2))/dist_ab(i))^2*(s_Pi(i+1,2)^2+s_Pi(i,2)^2));
+    elseif i==np
+       dist_ab(i)=sqrt((Pi(1,1)-Pi(i,1))^2+(Pi(1,2)-Pi(i,2))^2);
+       s_dist_ab(i)=sqrt(((Pi(1,1)-Pi(i,1))/dist_ab(i))^2*(s_Pi(1,1)^2+s_Pi(i,1)^2)+((Pi(1,2)-Pi(i,2))/dist_ab(i))^2*(s_Pi(1,2)^2+s_Pi(i,2)^2));
+    end
+end
+per=sum(dist_ab);
+s_per=sqrt(sum(s_dist_ab.^2));
+
+%Área e precisão
+area_ab=zeros(1,np);
+for i=1:np
+    if i==1
+        area_ab(i)=Pi(i,1)*(Pi(i+1,2)-Pi(np,2));
+        s_area_ab(i)=sqrt(((Pi(i+1,2)-Pi(np,2))/2*s_Pi(i,1))^2+((Pi(np,1)-Pi(i+1,1))/2*s_Pi(i,2))^2);
+    elseif (i>1)&&(i<np)
+        area_ab(i)=Pi(i,1)*(Pi(i+1,2)-Pi(i-1,2));
+        s_area_ab(i)=sqrt(((Pi(i+1,2)-Pi(i-1,2))/2*s_Pi(i,1))^2+((Pi(i-1,1)-Pi(i+1,1))/2*s_Pi(i,2))^2);
+    elseif i==np
+        area_ab(i)=Pi(i,1)*(Pi(1,2)-Pi(i-1,2));
+        s_area_ab(i)=sqrt(((Pi(1,2)-Pi(i-1,2))/2*s_Pi(i,1))^2+((Pi(i-1,1)-Pi(1,1))/2*s_Pi(i,2))^2);
+    end
+end
+area=abs(sum(area_ab))/2;
+s_area=sqrt(sum(s_area_ab.^2));
+end
